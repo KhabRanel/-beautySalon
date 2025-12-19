@@ -77,9 +77,21 @@ async def reschedule_booking(booking_id: int, new_data: schemas.BookingUpdateDat
 async def read_root(request: Request, db: AsyncSession = Depends(database.get_db)):
     now = datetime.now()
 
+    service_durations = {
+        "Маникюр": 90,
+        "Педикюр": 120,
+        "Стрижка": 60,
+        "Окрашивание": 180,
+        "Массаж": 60,
+        "Брови": 30
+    }
+
     # Получаем все записи
     result = await db.execute(select(models.Booking).order_by(models.Booking.appointment_time))
     bookings = result.scalars().all()
+
+    for b in bookings:
+        b.duration = service_durations.get(b.service_type, 60)
 
     # 1. Статистика за всё время (прошедшие записи)
     past_bookings = [b for b in bookings if b.appointment_time < now]
@@ -98,6 +110,7 @@ async def read_root(request: Request, db: AsyncSession = Depends(database.get_db
         "request": request,
         "bookings": bookings,
         "now": now,
+        "range": range,
         "today_count": len(today_bookings),
         "total_revenue": today_revenue,
         "history": {

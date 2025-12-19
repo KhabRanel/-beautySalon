@@ -7,7 +7,6 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" type="text/css" href="https://npmcdn.com/flatpickr/dist/themes/material_blue.css">
@@ -15,25 +14,31 @@
     <style>
         body { font-family: 'Inter', sans-serif; transition: background-color 0.3s ease; }
         [data-bs-theme="light"] body { background-color: #f8f9fa; color: #333; }
-
         .navbar { border-bottom: 1px solid rgba(0,0,0,0.1); }
-        .card { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transition: transform 0.2s; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         .btn-primary { background-color: #6366f1; border: none; }
         .btn-primary:hover { background-color: #4f46e5; }
-
         .service-badge { font-size: 0.85rem; padding: 5px 10px; border-radius: 20px; background: rgba(99, 102, 241, 0.1); color: #6366f1; }
 
-        /* Анимация для статуса "Скоро" */
-        .animate-pulse {
-            animation: pulse-red 2s infinite;
+        /* Стили таймлайна */
+        .timeline-container { background: var(--bs-secondary-bg); border-radius: 10px; border: 1px solid rgba(0,0,0,0.05); overflow-x: auto; }
+        .timeline-hour { min-width: 80px; height: 100px; border-right: 1px solid rgba(0,0,0,0.05); position: relative; flex: 1; }
+        .timeline-booking {
+            position: absolute; top: 40px; height: 35px;
+            background: linear-gradient(45deg, #6366f1, #a855f7);
+            border: 2px solid white; border-radius: 8px; z-index: 10;
+            font-size: 0.7rem; color: white; display: flex; align-items: center;
+            justify-content: center; cursor: pointer; transition: transform 0.2s;
+            white-space: nowrap; overflow: hidden; padding: 0 5px;
         }
+        .timeline-booking:hover { transform: scale(1.05); z-index: 20; }
+
+        .animate-pulse { animation: pulse-red 2s infinite; }
         @keyframes pulse-red {
             0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
             70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
             100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
         }
-
-        #tableSearch:focus { box-shadow: 0 0 0 0.25rem rgba(99, 102, 241, 0.25); border-color: #6366f1; }
     </style>
 </head>
 <body>
@@ -73,27 +78,27 @@
         <div class="accordion-item border-0 shadow-sm" style="border-radius: 12px; overflow: hidden;">
             <h2 class="accordion-header">
                 <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStats">
-                    <i class="bi bi-graph-up-arrow me-2 text-primary"></i> Общая статистика (за всё время)
+                    <i class="bi bi-graph-up-arrow me-2 text-primary"></i> Общая аналитика
                 </button>
             </h2>
             <div id="collapseStats" class="accordion-collapse collapse" data-bs-parent="#statsAccordion">
                 <div class="accordion-body bg-light">
                     <div class="row text-center">
                         <div class="col-md-4">
-                            <div class="p-3">
-                                <div class="text-muted small uppercase fw-bold">ВСЕГО ВЫРУЧКИ</div>
+                            <div class="p-2">
+                                <div class="text-muted small fw-bold">ВСЕГО ВЫРУЧКИ</div>
                                 <div class="h4 m-0 text-success">{{ history.revenue }} ₽</div>
                             </div>
                         </div>
                         <div class="col-md-4 border-start border-end">
-                            <div class="p-3">
-                                <div class="text-muted small uppercase fw-bold">КЛИЕНТОВ ПРИНЯТО</div>
+                            <div class="p-2">
+                                <div class="text-muted small fw-bold">КЛИЕНТОВ</div>
                                 <div class="h4 m-0 text-primary">{{ history.clients }}</div>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="p-3">
-                                <div class="text-muted small uppercase fw-bold">ТОП УСЛУГА</div>
+                            <div class="p-2">
+                                <div class="text-muted small fw-bold">ТОП УСЛУГА</div>
                                 <div class="h4 m-0 text-dark">{{ history.popular }}</div>
                             </div>
                         </div>
@@ -103,6 +108,27 @@
         </div>
     </div>
 
+    <div class="card p-3 mb-4 shadow-sm border-0">
+        <h6 class="fw-bold mb-3 text-muted small"><i class="bi bi-clock-history me-2"></i>ГРАФИК ЗАГРУЗКИ (СЕГОДНЯ)</h6>
+        <div class="d-flex timeline-container">
+            {% for hour in range(8, 23) %}
+            <div class="timeline-hour">
+                <div class="p-1 small opacity-50" style="font-size: 0.7rem;">{{ hour }}:00</div>
+                {% for booking in bookings %}
+                    {% if booking.appointment_time.date() == now.date() and booking.appointment_time.hour == hour %}
+                    <div class="timeline-booking"
+                         style="left: {{ (booking.appointment_time.minute / 60) * 100 }}%;
+                                width: {{ (booking.duration / 60) * 100 }}%;"
+                         data-bs-toggle="tooltip"
+                         title="{{ booking.client_name }}: {{ booking.service_type }} ({{ booking.duration }} мин)">
+                        {{ booking.client_name }}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
 
     <div class="row">
         <div class="col-lg-4">
@@ -115,11 +141,20 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-muted small fw-bold">УСЛУГА</label>
-                        <select name="service_type" class="form-select" required>
+                        <select name="service_type" id="serviceSelect" class="form-select" required>
                             <option value="" disabled selected>Выберите услугу...</option>
-                            <optgroup label="Ногти"><option value="Маникюр">Маникюр</option><option value="Педикюр">Педикюр</option></optgroup>
-                            <optgroup label="Волосы"><option value="Стрижка">Стрижка</option><option value="Окрашивание">Окрашивание</option></optgroup>
-                            <optgroup label="Уход"><option value="Массаж">Массаж</option><option value="Брови">Брови</option></optgroup>
+                            <optgroup label="Ногти">
+                                <option value="Маникюр" data-price="1500">Маникюр</option>
+                                <option value="Педикюр" data-price="2500">Педикюр</option>
+                            </optgroup>
+                            <optgroup label="Волосы">
+                                <option value="Стрижка" data-price="1200">Стрижка</option>
+                                <option value="Окрашивание" data-price="5000">Окрашивание</option>
+                            </optgroup>
+                            <optgroup label="Уход">
+                                <option value="Массаж" data-price="3000">Массаж</option>
+                                <option value="Брови" data-price="800">Брови</option>
+                            </optgroup>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -128,7 +163,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-muted small fw-bold">СТОИМОСТЬ (₽)</label>
-                        <input type="number" name="price" class="form-control" placeholder="1500" required min="0">
+                        <input type="number" id="priceInput" name="price" class="form-control" placeholder="0" required min="0">
                     </div>
                     <button type="submit" class="btn btn-primary w-100 fw-bold py-2">Создать запись</button>
                 </form>
@@ -138,14 +173,14 @@
         <div class="col-lg-8">
             <div class="card p-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="fw-bold m-0">Ближайшие записи</h5>
-                    <div class="input-group input-group-sm w-50">
+                    <h5 class="fw-bold m-0 text-nowrap">Ближайшие записи</h5>
+                    <div class="input-group input-group-sm mx-3">
                         <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-search"></i></span>
-                        <input type="text" id="tableSearch" class="form-control border-start-0" placeholder="Поиск клиента...">
+                        <input type="text" id="tableSearch" class="form-control border-start-0" placeholder="Поиск...">
                     </div>
-                    <div class="btn-group btn-group-sm mb-3" style="margin-top: 15px">
+                    <div class="btn-group btn-group-sm">
                         <button class="btn btn-outline-primary active" onclick="filterStatus('all')">Все</button>
-                        <button class="btn btn-outline-primary" onclick="filterStatus('upcoming')">Предстоящие</button>
+                        <button class="btn btn-outline-primary" onclick="filterStatus('upcoming')">Будущие</button>
                     </div>
                 </div>
 
@@ -168,25 +203,22 @@
                                 <td>
                                     {% if booking.appointment_time < now %}
                                         <span class="badge bg-secondary opacity-75">Завершено</span>
-
                                     {% elif booking.appointment_time > now and (booking.appointment_time - now).total_seconds() < 3600 %}
                                         <span class="badge bg-danger animate-pulse">Скоро!</span>
-
                                     {% else %}
                                         <span class="badge bg-success">Ожидается</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <div class="small fw-bold">{{ booking.appointment_time.strftime('%d.%m') }}</div>
-                                    <div class="small text-muted">{{ booking.appointment_time.strftime('%H:%M') }}</div>
+                                    <div class="small fw-bold text-nowrap">{{ booking.appointment_time.strftime('%d.%m %H:%M') }}</div>
                                 </td>
                                 <td class="text-end">
-                                    <div class="d-flex justify-content-end gap-2">
-                                        <form action="/reschedule/{{ booking.id }}" method="post" class="d-flex gap-1 align-items-center">
-                                            <input type="text" name="new_time" class="form-control form-control-sm mini-picker" placeholder="Перенести" readonly required style="width: 100px;">
-                                            <button type="submit" class="btn btn-light btn-sm border" title="Перенести"><i class="bi bi-calendar2-event text-warning"></i></button>
+                                    <div class="d-flex justify-content-end gap-1">
+                                        <form action="/reschedule/{{ booking.id }}" method="post" class="d-flex gap-1">
+                                            <input type="text" name="new_time" class="form-control form-control-sm mini-picker" placeholder="Дата" readonly required style="width: 85px;">
+                                            <button type="submit" class="btn btn-light btn-sm border text-warning"><i class="bi bi-calendar-event"></i></button>
                                         </form>
-                                        <form id="delete-form-{{ booking.id }}" action="/delete/{{ booking.id }}" method="post" class="d-inline">
+                                        <form id="delete-form-{{ booking.id }}" action="/delete/{{ booking.id }}" method="post">
                                             <button type="button" onclick="confirmDelete('{{ booking.id }}')" class="btn btn-light btn-sm border text-danger">
                                                 <i class="bi bi-trash"></i>
                                             </button>
@@ -197,95 +229,72 @@
                             {% endfor %}
                         </tbody>
                     </table>
-                    {% if not bookings %}
-                    <div class="text-center text-muted py-5">
-                        <i class="bi bi-calendar-x h1 opacity-25 d-block mb-3"></i>
-                        Записей пока нет
-                    </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-    // 1. Настройка календаря
-    const fpConfig = {
-        enableTime: true,
-        dateFormat: "Y-m-d H:i",
-        time_24hr: true,
-        locale: "ru",
-        allowInput: false,
-        minDate: "today",
-        minuteIncrement: 15
-    };
+    // 1. Календари
+    const fpConfig = { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "ru", minDate: "today", minuteIncrement: 15 };
     flatpickr("#datetimepicker", fpConfig);
     flatpickr(".mini-picker", fpConfig);
 
-    // 2. Живые часы
+    // 2. Автоподстановка цены
+    document.getElementById('serviceSelect').addEventListener('change', function() {
+        const price = this.options[this.selectedIndex].getAttribute('data-price');
+        document.getElementById('priceInput').value = price;
+    });
+
+    // 3. Часы
     function updateClock() {
         document.getElementById('clock').textContent = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     }
     setInterval(updateClock, 1000); updateClock();
 
-    // 3. Живой поиск по таблице
+    // 4. Поиск
     document.getElementById('tableSearch').addEventListener('keyup', function() {
         let filter = this.value.toLowerCase();
-        let rows = document.querySelectorAll('#bookingTable tr');
-        rows.forEach(row => {
+        document.querySelectorAll('#bookingTable tr').forEach(row => {
             row.style.display = row.innerText.toLowerCase().includes(filter) ? '' : 'none';
         });
     });
 
-    // 4. Переключатель темной темы
-    const themeToggle = document.getElementById('themeToggle');
-    themeToggle.addEventListener('click', () => {
-        const currentTheme = document.documentElement.getAttribute('data-bs-theme');
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-bs-theme', newTheme);
-        themeToggle.innerHTML = newTheme === 'dark' ? '<i class="bi bi-sun"></i>' : '<i class="bi bi-moon-stars"></i>';
+    // 5. Тема
+    document.getElementById('themeToggle').addEventListener('click', () => {
+        const theme = document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-bs-theme', theme);
+        document.getElementById('themeToggle').innerHTML = theme === 'dark' ? '<i class="bi bi-sun"></i>' : '<i class="bi bi-moon-stars"></i>';
     });
 
-    // 5. Красивое подтверждение удаления
+    // 6. Удаление
     function confirmDelete(id) {
         Swal.fire({
-            title: 'Удалить запись?',
-            text: "Данные клиента будут стерты из базы",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#dc3545',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: 'Да, удалить',
-            cancelButtonText: 'Отмена',
-            background: document.documentElement.getAttribute('data-bs-theme') === 'dark' ? '#1e1e1e' : '#fff',
-            color: document.documentElement.getAttribute('data-bs-theme') === 'dark' ? '#fff' : '#000'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                document.getElementById('delete-form-' + id).submit();
-            }
-        });
+            title: 'Удалить?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', confirmButtonText: 'Да', cancelButtonText: 'Нет'
+        }).then((result) => { if (result.isConfirmed) document.getElementById('delete-form-' + id).submit(); });
     }
 
+    // 7. Фильтр статусов
     function filterStatus(mode) {
-    let rows = document.querySelectorAll('#bookingTable tr');
-    rows.forEach(row => {
-        let isPast = row.innerText.includes('Завершено');
-        if (mode === 'upcoming') {
-            row.style.display = isPast ? 'none' : '';
-        } else {
-            row.style.display = '';
-        }
-    });
-    // Переключение активной кнопки
-    event.target.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
-    event.target.classList.add('active');
+        document.querySelectorAll('#bookingTable tr').forEach(row => {
+            let isPast = row.innerText.includes('Завершено');
+            row.style.display = (mode === 'upcoming' && isPast) ? 'none' : '';
+        });
+        event.target.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
     }
+
+    // 8. Тултипы
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        tooltipTriggerList.map(function (el) { return new bootstrap.Tooltip(el) })
+    });
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
