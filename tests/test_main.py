@@ -1,5 +1,9 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
-from httpx import AsyncClient
+import pytest_asyncio
+from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.database import Base, engine, get_db
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -20,7 +24,11 @@ async def override_get_db():
 app.dependency_overrides[get_db] = override_get_db
 
 
-@pytest.fixture(autouse=True, scope="module")
+# Указываем, что все тесты в этом файле асинхронные по умолчанию
+postmark = pytest.mark.asyncio
+
+
+@pytest_asyncio.fixture(autouse=True, scope="module")
 async def prepare_database():
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -29,9 +37,11 @@ async def prepare_database():
         await conn.run_sync(Base.metadata.drop_all)
 
 
+
+
 @pytest.mark.asyncio
 async def test_create_booking():
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         response = await ac.post("/bookings/", json={
             "client_name": "Тестовый Клиент",
             "service_type": "Маникюр",
@@ -43,7 +53,7 @@ async def test_create_booking():
 
 @pytest.mark.asyncio
 async def test_read_bookings():
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         response = await ac.get("/bookings/")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
@@ -53,7 +63,7 @@ async def test_read_bookings():
 @pytest.mark.asyncio
 async def test_delete_booking():
     # Сначала создадим
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         create = await ac.post("/bookings/", json={
             "client_name": "Delete Me",
             "service_type": "Test",

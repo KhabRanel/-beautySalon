@@ -7,31 +7,23 @@ import asyncio
 from sqlalchemy.exc import OperationalError
 from app import models, schemas, database
 from datetime import datetime
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="Booking Service")
 
 templates = Jinja2Templates(directory="app/templates")
 
 
-@app.on_event("startup")
-async def startup():
-    # Пытаемся подключиться к БД в цикле
-    retries = 5
-    while retries > 0:
-        try:
-            async with database.engine.begin() as conn:
-                # Пробуем создать таблицы (это проверит соединение)
-                await conn.run_sync(models.Base.metadata.create_all)
-            print("--- Успешное подключение к БД! ---")
-            break  # Если успешно, выходим из цикла
-        except (OSError, OperationalError) as e:
-            retries -= 1
-            print(f"--- БД еще не готова, ждем 5 секунд... (Осталось попыток: {retries}) ---")
-            print(f"Ошибка: {e}")
-            await asyncio.sleep(5)  # Ждем 5 секунд перед повторной попыткой
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Логика при старте
+    async with database.engine.begin() as conn:
+        await conn.run_sync(models.Base.metadata.create_all)
+    yield
+    # Логика при выключении (если нужна)
 
-    if retries == 0:
-        print("--- Не удалось подключиться к БД после нескольких попыток ---")
+
+app = FastAPI(title="Beauty Salon", lifespan=lifespan)
+
 
 # --- API Endpoints ---
 
@@ -84,16 +76,24 @@ async def read_root(request: Request, db: AsyncSession = Depends(database.get_db
     return templates.TemplateResponse("index.html", {"request": request, "bookings": bookings})
 
 
-@app.post("/add", response_class=HTMLResponse)
+@app.post("/add")
 async def add_booking_form(
-        request: Request,
-        client_name: str = Form(...),
-        service_type: str = Form(...),
-        appointment_time: str = Form(...),
-        db: AsyncSession = Depends(database.get_db)
+    request: Request,
+    client_name: str = Form(...),
+    service_type: str = Form(...),
+    appointment_time: str = Form(None), # Меняем на None, чтобы обработать вручную
+    db: AsyncSession = Depends(database.get_db)
 ):
-    # appointment_time приходит строкой из HTML формы, парсим её
-    dt_obj = datetime.strptime(appointment_time, "%Y-%m-%d %H:%M")
+    # Если дата пустая или пришла ошибка - просто редиректим назад
+    if not appointment_time or appointment_time.strip() == "":
+        return RedirectResponse(url="/", status_code=303)
+
+    try:
+        # Пробуем распарсить дату
+        dt_obj = datetime.strptime(appointment_time, "%Y-%m-%d %H:%M")
+    except ValueError:
+        # Если формат неверный - тоже редиректим
+        return RedirectResponse(url="/", status_code=303)
     new_booking = models.Booking(
         client_name=client_name,
         service_type=service_type,
@@ -111,8 +111,28 @@ async def delete_booking_form(booking_id: int, db: AsyncSession = Depends(databa
 
 
 @app.post("/reschedule/{booking_id}")
-async def reschedule_booking_form(booking_id: int, new_time: str = Form(...),
-                                  db: AsyncSession = Depends(database.get_db)):
-    dt_obj = datetime.strptime(new_time, "%Y-%m-%d %H:%M")
-    await reschedule_booking(booking_id, schemas.BookingUpdateDate(appointment_time=dt_obj), db)
+async def reschedule_booking_form(
+        booking_id: int,
+        new_time: str = Form(None),  # Ставим None, чтобы не падать сразу
+        db: AsyncSession = Depends(database.get_db)
+):
+    # 1. Проверка на пустое поле
+    if not new_time or new_time.strip() == "":
+        return RedirectResponse(url="/", status_code=303)
+
+    try:
+        # 2. Проверка формата (убираем T, если используем Flatpickr с пробелом)
+        dt_obj = datetime.strptime(new_time, "%Y-%m-%d %H:%M")
+    except ValueError:
+        # Если дата некорректная, просто возвращаем на главную
+        return RedirectResponse(url="/", status_code=303)
+
+    # 3. Дальше идет ваша логика обновления в БД
+    result = await db.execute(select(models.Booking).where(models.Booking.id == booking_id))
+    booking = result.scalar_one_or_none()
+
+    if booking:
+        booking.appointment_time = dt_obj
+        await db.commit()
+
     return RedirectResponse(url="/", status_code=303)

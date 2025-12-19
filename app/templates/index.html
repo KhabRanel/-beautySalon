@@ -58,7 +58,13 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-muted small fw-bold">ДАТА И ВРЕМЯ</label>
-                        <input type="text" name="appointment_time" id="datetimepicker" class="form-control" placeholder="Выберите время" required>
+                        <input type="text"
+                           name="appointment_time"
+                           id="datetimepicker"
+                           class="form-control"
+                           placeholder="Выберите дату и время"
+                           readonly
+                           required>
                     </div>
                     <button type="submit" class="btn btn-primary w-100 fw-bold">Создать запись</button>
                 </form>
@@ -118,6 +124,7 @@
         dateFormat: "Y-m-d H:i", // Формат, который понимает Python
         time_24hr: true,
         locale: "ru",
+        allowInput: false,
         minDate: "today", // Нельзя записаться на прошедшую дату
         minuteIncrement: 15
     };
