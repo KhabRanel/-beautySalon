@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+
+# Docker
+# Не игнорируем Dockerfile и docker-compose.yml, но игнорируем данные БД
+postgres_data/
+
+# Environment
+.env
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/

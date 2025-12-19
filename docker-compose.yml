@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: beauty_salon
+    # Порты для базы удалены, чтобы не было конфликтов с вашей системой
+
+  web:
+    build: .
+    ports:
+      - "8000:8000" # Оставляем только порт для сайта
+    environment:
+      # Обратите внимание: хост теперь 'db' (внутреннее имя в Docker)
+      DATABASE_URL: "postgresql+asyncpg://user:password@db/beauty_salon"
+    depends_on:
+      - db
