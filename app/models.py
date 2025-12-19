@@ -4,11 +4,9 @@ from datetime import datetime
 
 class Booking(Base):
     __tablename__ = "bookings"
-
     id = Column(Integer, primary_key=True, index=True)
     client_name = Column(String, nullable=False)
-    service_type = Column(String, nullable=False) # Например: "Маникюр"
-    description = Column(Text, nullable=True)
-    # Используем DateTime для хранения даты и времени
+    service_type = Column(String, nullable=False)
+    price = Column(Integer, default=0) # Добавили поле цены
     appointment_time = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=datetime.now)

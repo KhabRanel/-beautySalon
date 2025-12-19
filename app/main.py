@@ -42,16 +42,21 @@ async def read_bookings(db: AsyncSession = Depends(database.get_db)):
     return result.scalars().all()
 
 
-@app.delete("/bookings/{booking_id}")
-async def delete_booking(booking_id: int, db: AsyncSession = Depends(database.get_db)):
+@app.post("/delete/{booking_id}")  # Должен быть POST, так как форма в HTML отправляет POST
+async def delete_booking(
+        booking_id: int,
+        db: AsyncSession = Depends(database.get_db)
+):
+    # Находим запись
     result = await db.execute(select(models.Booking).where(models.Booking.id == booking_id))
     booking = result.scalar_one_or_none()
-    if not booking:
-        raise HTTPException(status_code=404, detail="Booking not found")
 
-    await db.delete(booking)
-    await db.commit()
-    return {"ok": True}
+    if booking:
+        await db.delete(booking)
+        await db.commit()
+
+    # Вместо возврата сообщения или объекта, делаем редирект на главную
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.put("/bookings/{booking_id}/reschedule")
@@ -70,10 +75,20 @@ async def reschedule_booking(booking_id: int, new_data: schemas.BookingUpdateDat
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, db: AsyncSession = Depends(database.get_db)):
-    # Получаем заявки для отображения
     result = await db.execute(select(models.Booking).order_by(models.Booking.appointment_time))
     bookings = result.scalars().all()
-    return templates.TemplateResponse("index.html", {"request": request, "bookings": bookings})
+
+    now = datetime.now()
+    total_revenue = sum(getattr(b, 'price', 0) or 0 for b in bookings if b.appointment_time.date() == now.date())
+    today_count = len([b for b in bookings if b.appointment_time.date() == now.date()])
+
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "bookings": bookings,
+        "now": now,
+        "total_revenue": total_revenue,
+        "today_count": today_count
+    })
 
 
 @app.post("/add")
@@ -81,6 +96,7 @@ async def add_booking_form(
     request: Request,
     client_name: str = Form(...),
     service_type: str = Form(...),
+    price: int = Form(0),
     appointment_time: str = Form(None), # Меняем на None, чтобы обработать вручную
     db: AsyncSession = Depends(database.get_db)
 ):
@@ -97,6 +113,7 @@ async def add_booking_form(
     new_booking = models.Booking(
         client_name=client_name,
         service_type=service_type,
+        price=price,
         appointment_time=dt_obj
     )
     db.add(new_booking)
