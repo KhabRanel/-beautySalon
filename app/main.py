@@ -6,7 +6,7 @@ from sqlalchemy import select, delete, update, func
 import asyncio
 from sqlalchemy.exc import OperationalError
 from app import models, schemas, database
-from datetime import datetime
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
 
@@ -73,9 +73,14 @@ async def reschedule_booking(booking_id: int, new_data: schemas.BookingUpdateDat
 
 # --- Frontend Endpoints (Работа с формами) ---
 
+from datetime import datetime, timezone, timedelta
+from sqlalchemy import select
+
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, db: AsyncSession = Depends(database.get_db)):
-    now = datetime.now()
+    # 1. Настройка времени (с учетом часового пояса, например МСК +3)
+    now = datetime.now(timezone(timedelta(hours=3))).replace(tzinfo=None)
 
     service_durations = {
         "Маникюр": 90,
@@ -86,25 +91,42 @@ async def read_root(request: Request, db: AsyncSession = Depends(database.get_db
         "Брови": 30
     }
 
-    # Получаем все записи
+    # 2. Получаем все записи из базы
     result = await db.execute(select(models.Booking).order_by(models.Booking.appointment_time))
     bookings = result.scalars().all()
 
+    # Присваиваем длительность каждой записи для таймлайна
     for b in bookings:
         b.duration = service_durations.get(b.service_type, 60)
 
-    # 1. Статистика за всё время (прошедшие записи)
+    # 3. Общая статистика (Архив)
     past_bookings = [b for b in bookings if b.appointment_time < now]
     total_past_revenue = sum(b.price for b in past_bookings)
     total_clients = len(past_bookings)
 
-    # 2. Популярная услуга
     services = [b.service_type for b in past_bookings]
     popular_service = max(set(services), key=services.count) if services else "—"
 
-    # 3. Статистика на сегодня (оставляем как было)
+    # 4. Статистика на сегодня
     today_bookings = [b for b in bookings if b.appointment_time.date() == now.date()]
     today_revenue = sum(b.price for b in today_bookings)
+
+    # 5. ПОДГОТОВКА ДАННЫХ ДЛЯ ГРАФИКА (за последние 7 дней)
+    chart_data = {}
+    # Генерируем последние 7 дней (включая сегодня)
+    for i in range(6, -1, -1):
+        date_key = (now.date() - timedelta(days=i)).strftime("%d.%m")
+        chart_data[date_key] = 0
+
+    # Наполняем выручкой из базы
+    for b in bookings:
+        date_key = b.appointment_time.strftime("%d.%m")
+        if date_key in chart_data:
+            chart_data[date_key] += b.price
+
+    # Формируем списки для Chart.js
+    chart_labels = list(chart_data.keys())
+    chart_values = list(chart_data.values())
 
     return templates.TemplateResponse("index.html", {
         "request": request,
@@ -113,6 +135,8 @@ async def read_root(request: Request, db: AsyncSession = Depends(database.get_db
         "range": range,
         "today_count": len(today_bookings),
         "total_revenue": today_revenue,
+        "chart_labels": chart_labels,
+        "chart_values": chart_values,
         "history": {
             "revenue": total_past_revenue,
             "clients": total_clients,
@@ -183,3 +207,15 @@ async def reschedule_booking_form(
         await db.commit()
 
     return RedirectResponse(url="/", status_code=303)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    # Печатаем красивую ссылку в консоль перед запуском
+    print("\n" + "=" * 50)
+    print("🚀 BeautyAdmin запущен!")
+    print("👉 Локальная ссылка: http://127.0.0.1:8000")
+    print("=" * 50 + "\n")
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
