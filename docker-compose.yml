@@ -5,7 +5,8 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: beauty_salon
-    # Порты для базы удалены, чтобы не было конфликтов с вашей системой
+      TZ: Europe/Moscow
+
 
   web:
     build: .

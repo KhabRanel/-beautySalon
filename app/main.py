@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, update
+from sqlalchemy import select, delete, update, func
 import asyncio
 from sqlalchemy.exc import OperationalError
 from app import models, schemas, database
@@ -75,19 +75,36 @@ async def reschedule_booking(booking_id: int, new_data: schemas.BookingUpdateDat
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, db: AsyncSession = Depends(database.get_db)):
+    now = datetime.now()
+
+    # Получаем все записи
     result = await db.execute(select(models.Booking).order_by(models.Booking.appointment_time))
     bookings = result.scalars().all()
 
-    now = datetime.now()
-    total_revenue = sum(getattr(b, 'price', 0) or 0 for b in bookings if b.appointment_time.date() == now.date())
-    today_count = len([b for b in bookings if b.appointment_time.date() == now.date()])
+    # 1. Статистика за всё время (прошедшие записи)
+    past_bookings = [b for b in bookings if b.appointment_time < now]
+    total_past_revenue = sum(b.price for b in past_bookings)
+    total_clients = len(past_bookings)
+
+    # 2. Популярная услуга
+    services = [b.service_type for b in past_bookings]
+    popular_service = max(set(services), key=services.count) if services else "—"
+
+    # 3. Статистика на сегодня (оставляем как было)
+    today_bookings = [b for b in bookings if b.appointment_time.date() == now.date()]
+    today_revenue = sum(b.price for b in today_bookings)
 
     return templates.TemplateResponse("index.html", {
         "request": request,
         "bookings": bookings,
         "now": now,
-        "total_revenue": total_revenue,
-        "today_count": today_count
+        "today_count": len(today_bookings),
+        "total_revenue": today_revenue,
+        "history": {
+            "revenue": total_past_revenue,
+            "clients": total_clients,
+            "popular": popular_service
+        }
     })
 
 
